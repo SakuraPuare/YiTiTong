@@ -230,6 +230,12 @@ async def main():
         ids = list(range(len(courses)))
         random.shuffle(ids)
 
+    try:
+        ids = [int(i) for i in ids]
+    except ValueError:
+        print('输入错误')
+        return
+
     while not is_success:
         for i in ids:
             if i > len(courses):
@@ -243,8 +249,9 @@ async def main():
                     print(f'抢课成功')
                     is_success = True
                     break
-        if is_success:
-            break
+
+            if is_success:
+                break
 
 
 if __name__ == "__main__":
