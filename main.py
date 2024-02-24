@@ -232,6 +232,9 @@ async def main():
 
     while not is_success:
         for i in ids:
+            if ids > len(courses):
+                continue
+
             resp = await select_course(token, term, courses[int(i) - 1].course_pk, user.self_pk)
             message = resp.get('result').get('message')
             print(message)
