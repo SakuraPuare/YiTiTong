@@ -89,11 +89,13 @@ class Course:
         return cls(data.get('cozName'), data.get('teachers'), data.get('totalLim'), data.get('pk'))
 
 
-async def request(url: str, data: dict) -> httpx.Response | None:
+async def request(url: str, data: dict = None, json: dict = None, headers: dict = None) -> httpx.Response | None:
+    if not headers:
+        headers = base_header
     try:
         async with limit:
             async with httpx.AsyncClient() as client:
-                resp = await client.post(url, headers=base_header, json=data, timeout=10)
+                resp = await client.post(url, headers=headers, data=data, json=json, timeout=10)
                 if resp.status_code != 200:
                     raise Exception(f'Error: {resp.status_code}')
                 return resp
@@ -111,12 +113,23 @@ async def login(account: str, password: str) -> str:
             return token
 
     url = base_url + '/connect/token'
-    params = {'grant_type': 'password', 'client_secret': '20abf53e-dae2-11ea-80bd-00163e0a4976',
-              'client_id': '1971b298-dae2-11ea-80bd-00163e0a4976', 'username': account, 'password': password}
+    params = {
+        'grant_type': 'password',
+        'client_secret': '20abf53e-dae2-11ea-80bd-00163e0a4976',
+        'client_id': '1971b298-dae2-11ea-80bd-00163e0a4976',
+        'username': account,
+        'password': password,
+    }
+    headers = {
+        'User-Agent': 'okhttp/4.7.2',
+        'Connection': 'Keep-Alive',
+        # 'Accept-Encoding': 'gzip',
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
 
-    resp = await request(url, params)
+    resp = await request(url, params=params, headers=headers)
     while resp is None:
-        resp = await request(url, params)
+        resp = await request(url, params=params, headers=headers)
 
     data = resp.json()
     # parse as bearer token
@@ -131,15 +144,15 @@ async def login(account: str, password: str) -> str:
 
 async def get_person_info(token: str, account: str):
     url = base_url + '/api/User/Personal'
-    params = {
+    json = {
         'data': {
             'LoginName': account
         }
     }
 
-    resp = await request(url, params)
+    resp = await request(url, json=json)
     while resp is None:
-        resp = await request(url, params)
+        resp = await request(url, json=json)
 
     data = resp.json()
     return data
@@ -147,7 +160,7 @@ async def get_person_info(token: str, account: str):
 
 async def get_all_courses(token: str, org_pk: str, person_pk: str) -> list | None:
     url = 'http://tyclub.hbuas.edu.cn:12013/api/app/stuCozSelQuery'
-    params = {
+    json = {
         'data': {
             'fkOrg': org_pk,
             'personPk': person_pk,
@@ -156,26 +169,29 @@ async def get_all_courses(token: str, org_pk: str, person_pk: str) -> list | Non
         }
     }
 
-    resp = await request(url, params)
+    resp = await request(url, json=json)
     while resp is None:
-        resp = await request(url, params)
+        resp = await request(url, json=json)
 
     data = resp.json()
+    assert not data.get('result', {}).get(
+        'isError', True), data.get('result', {}).get('message')
+
     ret = [i for i in data.get('data', {}).get('rows', [])]
     return ret
 
 
 async def get_term_info(token, person_pk) -> str:
     url = 'http://tyclub.hbuas.edu.cn:12013/api/app/stuGetSelCozSched'
-    params = {
+    json = {
         'data': {
             'personPk': person_pk,
         }
     }
 
-    resp = await request(url, params)
+    resp = await request(url, json=json)
     while resp is None:
-        resp = await request(url, params)
+        resp = await request(url, json=json)
 
     data = resp.json()
     return data.get('data').get('rows')[0].get('fkCozStuSel')
@@ -183,7 +199,7 @@ async def get_term_info(token, person_pk) -> str:
 
 async def select_course(token, term_pk, course_pk, person_pk):
     url = 'http://tyclub.hbuas.edu.cn:12013/api/app/stuCozSel'
-    params = {
+    json = {
         'data': {
             'pk': term_pk,
             'fkCozSched': course_pk,
@@ -191,17 +207,18 @@ async def select_course(token, term_pk, course_pk, person_pk):
         }
     }
 
-    resp = await request(url, params)
+    resp = await request(url, json=json)
     while resp is None:
-        resp = await request(url, params)
+        resp = await request(url, json=json)
 
     data = resp.json()
     return data
 
 
 async def main():
-    account = input('账号: ')
-    password = input('密码: ')
+    account = input('账号: ').strip()
+    password = input('密码: ').strip()
+
     user = User(account, password)
     token = await login(account, password)
     user.token = token
