@@ -12,7 +12,7 @@ base_header = {
     'Host': 'tyclub.hbuas.edu.cn',
     'Connection': 'Keep-Alive',
     'Content-Type': 'application/json',
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; 22011211C Build/TP1A.220624.014; wv)'
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 13)'
                   ' AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/121.0.6167.178 '
                   'Mobile Safari/537.36 agentweb/4.0.2  UCBrowser/11.6.4.950',
     'Access-Control-Allow-Methods': 'POST,GET,OPTIONS',
@@ -113,7 +113,7 @@ async def login(account: str, password: str) -> str:
             return token
 
     url = base_url + '/connect/token'
-    params = {
+    data = {
         'grant_type': 'password',
         'client_secret': '20abf53e-dae2-11ea-80bd-00163e0a4976',
         'client_id': '1971b298-dae2-11ea-80bd-00163e0a4976',
@@ -127,9 +127,9 @@ async def login(account: str, password: str) -> str:
         'Content-Type': 'application/x-www-form-urlencoded',
     }
 
-    resp = await request(url, params=params, headers=headers)
+    resp = await request(url, data=data, headers=headers)
     while resp is None:
-        resp = await request(url, params=params, headers=headers)
+        resp = await request(url, data=data, headers=headers)
 
     data = resp.json()
     # parse as bearer token
@@ -142,7 +142,7 @@ async def login(account: str, password: str) -> str:
     return token
 
 
-async def get_person_info(token: str, account: str):
+async def get_person_info(account: str):
     url = base_url + '/api/User/Personal'
     json = {
         'data': {
@@ -158,7 +158,7 @@ async def get_person_info(token: str, account: str):
     return data
 
 
-async def get_all_courses(token: str, org_pk: str, person_pk: str) -> list | None:
+async def get_all_courses(org_pk: str, person_pk: str) -> list | None:
     url = 'http://tyclub.hbuas.edu.cn:12013/api/app/stuCozSelQuery'
     json = {
         'data': {
@@ -181,7 +181,7 @@ async def get_all_courses(token: str, org_pk: str, person_pk: str) -> list | Non
     return ret
 
 
-async def get_term_info(token, person_pk) -> str:
+async def get_term_info(person_pk) -> str:
     url = 'http://tyclub.hbuas.edu.cn:12013/api/app/stuGetSelCozSched'
     json = {
         'data': {
@@ -197,7 +197,7 @@ async def get_term_info(token, person_pk) -> str:
     return data.get('data').get('rows')[0].get('fkCozStuSel')
 
 
-async def select_course(token, term_pk, course_pk, person_pk):
+async def select_course(term_pk, course_pk, person_pk):
     url = 'http://tyclub.hbuas.edu.cn:12013/api/app/stuCozSel'
     json = {
         'data': {
@@ -222,13 +222,13 @@ async def main():
     user = User(account, password)
     token = await login(account, password)
     user.token = token
-    user.update(await get_person_info(token, account))
+    user.update(await get_person_info(account))
 
     print(f'欢迎您！{user}')
 
     courses = sorted([Course.from_dict(i) for i in
-                      await get_all_courses(token, user.school_pk, user.self_pk)])
-    term = await get_term_info(token, user.self_pk)
+                      await get_all_courses(user.school_pk, user.self_pk)])
+    term = await get_term_info(user.self_pk)
 
     print('请选择课程信息，输入序号开始抢课，输入0退出，如果需要同时抢多门课程，请用逗号分隔')
     print('直接回车开始抢所有的课程\n')
@@ -258,7 +258,7 @@ async def main():
             if i > len(courses):
                 continue
 
-            resp = await select_course(token, term, courses[int(i) - 1].course_pk, user.self_pk)
+            resp = await select_course(term, courses[int(i) - 1].course_pk, user.self_pk)
             message = resp.get('result').get('message')
             print(message)
             for status in ['课程已选，需退课后再次选课!', '执行成功']:
